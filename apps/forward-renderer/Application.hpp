@@ -34,9 +34,9 @@ private:
     const GLvoid * sphere_indexBufferData;
     
     
-    GLuint modelViewProject;
-    GLuint modelView;
-    GLuint normalMatrix;
+    GLint modelViewProject;
+    GLint modelView;
+    GLint normalMatrix;
     
     glmlv::GLProgram prog;
 };

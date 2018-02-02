@@ -94,7 +94,7 @@ Application::Application(int argc, char** argv):
     prog = glmlv::compileProgram({ m_ShadersRootPath / m_AppName / "forward.vs.glsl", m_ShadersRootPath / m_AppName / "forward.fs.glsl" });
     
     //Récupération des locations des variables uniformes
-	modelViewProject = glGetUniformLocation(prog.glId(), "uModelViewProjectMatrix");
+	modelViewProject = glGetUniformLocation(prog.glId(), "uModelViewProjMatrix");
 	modelView = glGetUniformLocation(prog.glId(), "uModelViewMatrix");
 	normalMatrix = glGetUniformLocation(prog.glId(), "uNormalMatrix");
 	

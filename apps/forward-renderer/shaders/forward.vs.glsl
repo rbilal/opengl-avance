@@ -13,8 +13,8 @@ out vec3 vViewSpaceNormal;
 out vec2 vTexCoords;
 
 void main(){
-	vec4 vPosition = vec4(aPosition, 0);
-	vec4 vNormal = vec4(aNormal, 1);
+	vec4 vPosition = vec4(aPosition, 1);
+	vec4 vNormal = vec4(aNormal, 0);
 	
 	vViewSpacePosition = vec3(uModelViewMatrix * vPosition);
 	vViewSpaceNormal = vec3(uNormalMatrix * vNormal);
