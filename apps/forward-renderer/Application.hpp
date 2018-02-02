@@ -25,13 +25,11 @@ private:
     GLuint cube_ibo;
     
     GLuint cube_indexBufferSize;
-    const GLvoid * cube_indexBufferData;
     
     GLuint sphere_vbo;
     GLuint sphere_vao;
     GLuint sphere_ibo;
     GLuint sphere_indexBufferSize;
-    const GLvoid * sphere_indexBufferData;
     
     
     GLint modelViewProject;

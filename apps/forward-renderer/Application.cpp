@@ -5,8 +5,10 @@
 #include <imgui.h>
 #include <glmlv/imgui_impl_glfw_gl3.hpp>
 #include <glmlv/simple_geometry.hpp>
+#include <glmlv/ViewController.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
 
 using namespace glmlv;
 using namespace std;
@@ -14,8 +16,16 @@ using namespace std;
 int Application::run()
 {
 	glm::mat4 ProjMatrix = glm::perspective(glm::radians(70.f), float(m_nWindowWidth)/m_nWindowHeight, 0.1f, 100.f);
-	glm::mat4 MVMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -5));
+	ViewController viewController(m_GLFWHandle.window());
+	glm::mat4 viewMatrix = viewController.getViewMatrix();	
+	
+	glm::mat4 MVMatrix = glm::translate(viewMatrix, glm::vec3(5, 0, -5));
 	glm::mat4 NormalMatrix = glm::transpose(glm::inverse(MVMatrix));
+	
+	glm::mat4 SMVMatrix = glm::translate(viewMatrix, glm::vec3(0, 0, -5));
+	glm::mat4 SNormalMatrix = glm::transpose(glm::inverse(SMVMatrix));
+	
+	
     float clearColor[3] = { 0, 0, 0 };
     // Loop until the user closes the window
     for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount)
@@ -35,16 +45,16 @@ int Application::run()
         glDrawElements(GL_TRIANGLES, cube_indexBufferSize, GL_UNSIGNED_INT, nullptr);
         
         glBindVertexArray(0);
-/*
+
 		glBindVertexArray(sphere_vao);
         
-        glUniformMatrix4fv(modelViewProject,1,GL_FALSE, glm::value_ptr(ProjMatrix * MVMatrix));
-        glUniformMatrix4fv(modelView,1,GL_FALSE, glm::value_ptr(MVMatrix));
-        glUniformMatrix4fv(normalMatrix,1,GL_FALSE, glm::value_ptr(NormalMatrix));
+        glUniformMatrix4fv(modelViewProject,1,GL_FALSE, glm::value_ptr(ProjMatrix * SMVMatrix));
+        glUniformMatrix4fv(modelView,1,GL_FALSE, glm::value_ptr(SMVMatrix));
+        glUniformMatrix4fv(normalMatrix,1,GL_FALSE, glm::value_ptr(SNormalMatrix));
         
         glDrawElements(GL_TRIANGLES, sphere_indexBufferSize, GL_UNSIGNED_INT, nullptr);
         
-        glBindVertexArray(0);*/
+        glBindVertexArray(0);
         //
         //
         //
@@ -75,7 +85,7 @@ int Application::run()
         auto ellapsedTime = glfwGetTime() - seconds;
         auto guiHasFocus = ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard;
         if (!guiHasFocus) {
-            //viewController.update(float(ellapsedTime))
+            viewController.update(float(ellapsedTime));
         }
     }
 
@@ -106,11 +116,10 @@ Application::Application(int argc, char** argv):
     
     SimpleGeometry cube_vertices = makeCube();
     cube_indexBufferSize = cube_vertices.indexBuffer.size();
-    //cube_indexBufferData = cube_vertices.indexBuffer.data();
     
     glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
 
-    glBufferStorage(GL_ARRAY_BUFFER, cube_vertices.vertexBuffer.size() * sizeof(cube_vertices.vertexBuffer[0]), cube_vertices.vertexBuffer.data(), 0);
+    glBufferStorage(GL_ARRAY_BUFFER, cube_indexBufferSize * sizeof(cube_vertices.vertexBuffer[0]), cube_vertices.vertexBuffer.data(), 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
@@ -118,7 +127,7 @@ Application::Application(int argc, char** argv):
 
     glBindBuffer(GL_ARRAY_BUFFER, cube_ibo);
     
-    glBufferStorage(GL_ARRAY_BUFFER, cube_vertices.indexBuffer.size() * sizeof(cube_vertices.indexBuffer[0]), cube_vertices.indexBuffer.data(), 0);
+    glBufferStorage(GL_ARRAY_BUFFER, cube_indexBufferSize * sizeof(cube_vertices.indexBuffer[0]), cube_vertices.indexBuffer.data(), 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -127,7 +136,7 @@ Application::Application(int argc, char** argv):
 	const GLint positionAttrLocation = 0;
     const GLint normalAttrLocation = 1;
     const GLint texCoordsAttrLocation = 2;
-    
+ 
     glBindVertexArray(cube_vao);
     
     glBindBuffer(GL_ARRAY_BUFFER, cube_vbo);
@@ -147,18 +156,17 @@ Application::Application(int argc, char** argv):
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
 
     glBindVertexArray(0);
-    
+
 //	############################################ SPHERE INITIALISATION #########################################################
-    /*
-    glGenBuffers(1, &sphere_vbo);
     
-    SimpleGeometry sphere_vertices = makeCube();
+	glGenBuffers(1, &sphere_vbo);
+    
+    SimpleGeometry sphere_vertices = makeSphere(10);
     sphere_indexBufferSize = sphere_vertices.indexBuffer.size();
-    sphere_indexBufferData = sphere_vertices.indexBuffer.data();
     
     glBindBuffer(GL_ARRAY_BUFFER, sphere_vbo);
 
-    glBufferStorage(GL_ARRAY_BUFFER, sphere_vertices.vertexBuffer.size() * sizeof(vector<Vertex3f3f2f>), sphere_indexBufferData, 0);
+    glBufferStorage(GL_ARRAY_BUFFER, sphere_vertices.vertexBuffer.size() * sizeof(sphere_vertices.vertexBuffer[0]), sphere_vertices.vertexBuffer.data(), 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     
@@ -166,7 +174,7 @@ Application::Application(int argc, char** argv):
 
     glBindBuffer(GL_ARRAY_BUFFER, sphere_ibo);
     
-    glBufferStorage(GL_ARRAY_BUFFER, sizeof(sphere_vertices.indexBuffer), sphere_indexBufferData, 0);
+    glBufferStorage(GL_ARRAY_BUFFER, sphere_indexBufferSize * sizeof(sphere_vertices.indexBuffer[0]), sphere_vertices.indexBuffer.data(), 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -188,10 +196,10 @@ Application::Application(int argc, char** argv):
 
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphere_ibo);
 
     glBindVertexArray(0);
-    */
-    
     
     glEnable(GL_DEPTH_TEST);
     
