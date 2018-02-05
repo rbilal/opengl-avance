@@ -19,9 +19,6 @@ int Application::run()
 {
 	ViewController viewController(m_GLFWHandle.window());
 	const auto sceneDiagonalSize = glm::length(data.bboxMax - data.bboxMin);
-    const auto viewportSize = m_GLFWHandle.framebufferSize();
-
-	glm::mat4 ProjMatrix = glm::perspective(glm::radians(70.f), float(m_nWindowWidth)/m_nWindowHeight, 0.01f * sceneDiagonalSize, sceneDiagonalSize);
 		
 	viewController.setSpeed(sceneDiagonalSize * 0.1f); // 10% de la scene parcouru par seconde
     float clearColor[3] = { 0, 0, 0 };
@@ -33,9 +30,12 @@ int Application::run()
         const auto seconds = glfwGetTime();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        const auto viewportSize = m_GLFWHandle.framebufferSize();
+        glViewport(0, 0, viewportSize.x, viewportSize.y);
+
+		glm::mat4 ProjMatrix = glm::perspective(glm::radians(70.f), float(viewportSize.x)/viewportSize.y, 0.01f * sceneDiagonalSize, sceneDiagonalSize);
 		glm::mat4 viewMatrix = viewController.getViewMatrix();
         // Put here rendering code
-        glActiveTexture(GL_TEXTURE0);
 
         glBindSampler(0, samplerObject);
            
@@ -56,13 +56,14 @@ int Application::run()
 		auto indexOffset = 0;
 		for (int i = 0; i < data.shapeCount ; i++)
 		{
+			glUniform1i(dSamplerLocation, 0);
+
 			int32_t materialId = data.materialIDPerShape[i];
+			glUniform3fv(kd, 1, value_ptr(data.materials[materialId].Kd));
 
 			glActiveTexture(GL_TEXTURE0);
-			if(tex_objects[data.materials[materialId].KaTextureId] >= 0)
-				glBindTexture(GL_TEXTURE_2D, tex_objects[data.materials[materialId].KaTextureId]);
-			else
-				glBindTexture(GL_TEXTURE_2D, 0);
+			glBindTexture(GL_TEXTURE_2D, tex_objects[data.materials[materialId].KdTextureId]);
+
 
 			/*glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, tex_objects[data.materials[materialId].KsTextureId]);
@@ -75,10 +76,6 @@ int Application::run()
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, tex_objects[data.materials[materialId].shininessTextureId]);*/
 
-			glUniform1i(aSamplerLocation, 0);
-
-
-	  		glUniform3f(kd,data.materials[materialId].Kd[0],data.materials[materialId].Kd[1], data.materials[materialId].Kd[2]);
 
 			const auto indexCount = data.indexCountPerShape[i];
 			glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, (const GLvoid*) (indexOffset * sizeof(GLuint)));
@@ -87,10 +84,8 @@ int Application::run()
 
 			// glUniform3f(ks,data.materials[i].Ks[0],data.materials[i].Ks[1], data.materials[i].Ks[2]);
 			// glUniform3f(ka,data.materials[i].Ka[0],data.materials[i].Ka[1], data.materials[i].Ka[2]);
-
-			// glUniform1i(dSamplerLocation, tex_objects[data.materials[i].KdTextureId]);
-			// glUniform1i(sSamplerLocation, tex_objects[data.materials[i].KsTextureId]);
-			// glUniform1i(aSamplerLocation, tex_objects[data.materials[i].KaTextureId]);
+			// glUniform1i(sSamplerLocation, 1);
+			// glUniform1i(aSamplerLocation, 2);
 		}
 
 
@@ -115,7 +110,6 @@ int Application::run()
             ImGui::End();
         }
 
-        glViewport(0, 0, viewportSize.x, viewportSize.y);
         ImGui::Render();
 
         /* Poll for and process events */
@@ -206,7 +200,7 @@ Application::Application(int argc, char** argv):
 	
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, scene_ibo);
 	
-	glBindVertexArray(scene_vao);
+	glBindVertexArray(0);
 	
 	
 	glActiveTexture(GL_TEXTURE0);

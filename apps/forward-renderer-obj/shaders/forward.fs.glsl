@@ -21,7 +21,7 @@ out vec3 fFragColor;
 
 void main() {
 	
-	vec3 coeff = texture(uKaSampler, vTexCoords).xyz;
+	vec3 coeff = texture(uKdSampler, vTexCoords).xyz;
 
 	float distToPointLight = length(uPointLightPosition - vViewSpacePosition);
 	vec3 dirToPointLight = (uPointLightPosition - vViewSpacePosition) / distToPointLight;

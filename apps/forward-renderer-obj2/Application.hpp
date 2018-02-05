@@ -42,9 +42,6 @@ private:
 	GLuint scene_vao;
 	std::vector<GLuint> tex_objects;
 	
-	GLuint texObject = 0;
-	GLuint texObject2 = 0;
-	
     GLuint samplerObject = 0;
 
     GLint aSamplerLocation = -1;
