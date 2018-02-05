@@ -6,6 +6,7 @@
 #include <glmlv/imgui_impl_glfw_gl3.hpp>
 #include <glmlv/simple_geometry.hpp>
 #include <glmlv/ViewController.hpp>
+#include <glmlv/Image2DRGBA.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -17,26 +18,34 @@ int Application::run()
 {
 	glm::mat4 ProjMatrix = glm::perspective(glm::radians(70.f), float(m_nWindowWidth)/m_nWindowHeight, 0.1f, 100.f);
 	ViewController viewController(m_GLFWHandle.window());
-	glm::mat4 viewMatrix = viewController.getViewMatrix();	
-	
-	glm::mat4 MVMatrix = glm::translate(viewMatrix, glm::vec3(5, 0, -5));
-	glm::mat4 NormalMatrix = glm::transpose(glm::inverse(MVMatrix));
-	
-	glm::mat4 SMVMatrix = glm::translate(viewMatrix, glm::vec3(0, 0, -5));
-	glm::mat4 SNormalMatrix = glm::transpose(glm::inverse(SMVMatrix));
-	
 	
     float clearColor[3] = { 0, 0, 0 };
+    float udk[3] = { 1, 1, 1};
+    
     // Loop until the user closes the window
     for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount)
     {
         const auto seconds = glfwGetTime();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+		glm::mat4 viewMatrix = viewController.getViewMatrix();
         // Put here rendering code
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(uSamplerLocation, 0);
+        glBindSampler(0, samplerObject);
+        
+        glBindTexture(GL_TEXTURE_2D, texObject);     
         
         glBindVertexArray(cube_vao);
+        
+        glUniform3f(directionalLightDir, 1.0, 1.0, 1.0);
+        glUniform3f(directionalLightIntensity,1.0, 1.0, 1.0);
+        glUniform3f(pointLightPosition,1.0, 1.0, 1.0);
+        glUniform3f(pointLightIntensity,1.0, 1.0, 1.0);
+        glUniform3f(kd,udk[0], udk[1], udk[2]);
+        
+		glm::mat4 MVMatrix = glm::translate(viewMatrix, glm::vec3(5, 0, -5));
+		glm::mat4 NormalMatrix = glm::transpose(glm::inverse(MVMatrix));
         
         glUniformMatrix4fv(modelViewProject,1,GL_FALSE, glm::value_ptr(ProjMatrix * MVMatrix));
         glUniformMatrix4fv(modelView,1,GL_FALSE, glm::value_ptr(MVMatrix));
@@ -44,10 +53,23 @@ int Application::run()
         
         glDrawElements(GL_TRIANGLES, cube_indexBufferSize, GL_UNSIGNED_INT, nullptr);
         
+        glBindTexture(GL_TEXTURE_2D, texObject2);     
+
         glBindVertexArray(0);
 
 		glBindVertexArray(sphere_vao);
-        
+		
+		glm::vec3 vv = glm::normalize(glm::vec3(viewMatrix * glm::vec4(1.0, 1.0, 1.0, 0.0)));
+		
+        glUniform3fv(directionalLightDir, 1, glm::value_ptr(vv));
+        glUniform3f(directionalLightIntensity,1.0, 1.0, 1.0);
+        glUniform3fv(pointLightPosition, 1, value_ptr(glm::vec3(viewMatrix * glm::vec4(1.0, 1.0, 1.0, 1.0))));
+        glUniform3f(pointLightIntensity,1.0, 1.0, 1.0);
+        glUniform3f(kd,udk[0], udk[1], udk[2]);
+        		
+		glm::mat4 SMVMatrix = glm::translate(viewMatrix, glm::vec3(0, 0, -5));
+		glm::mat4 SNormalMatrix = glm::transpose(glm::inverse(SMVMatrix));
+		
         glUniformMatrix4fv(modelViewProject,1,GL_FALSE, glm::value_ptr(ProjMatrix * SMVMatrix));
         glUniformMatrix4fv(modelView,1,GL_FALSE, glm::value_ptr(SMVMatrix));
         glUniformMatrix4fv(normalMatrix,1,GL_FALSE, glm::value_ptr(SNormalMatrix));
@@ -69,6 +91,10 @@ int Application::run()
             if (ImGui::ColorEdit3("clearColor", clearColor)) {
                 glClearColor(clearColor[0], clearColor[1], clearColor[2], 1.f);
             }
+            ImGui::ColorEdit3("Color", udk);
+
+          
+            
             ImGui::End();
         }
 
@@ -96,9 +122,12 @@ Application::Application(int argc, char** argv):
     m_AppPath { glmlv::fs::path{ argv[0] } },
     m_AppName { m_AppPath.stem().string() },
     m_ImGuiIniFilename { m_AppName + ".imgui.ini" },
-    m_ShadersRootPath { m_AppPath.parent_path() / "shaders" }
+    m_ShadersRootPath { m_AppPath.parent_path() / "shaders" },
+    m_AssetsRootPath {m_AppPath.parent_path() / "assets"}
 
 {
+	
+
     ImGui::GetIO().IniFilename = m_ImGuiIniFilename.c_str(); // At exit, ImGUI will store its windows positions in this file
     
     prog = glmlv::compileProgram({ m_ShadersRootPath / m_AppName / "forward.vs.glsl", m_ShadersRootPath / m_AppName / "forward.fs.glsl" });
@@ -107,6 +136,12 @@ Application::Application(int argc, char** argv):
 	modelViewProject = glGetUniformLocation(prog.glId(), "uModelViewProjMatrix");
 	modelView = glGetUniformLocation(prog.glId(), "uModelViewMatrix");
 	normalMatrix = glGetUniformLocation(prog.glId(), "uNormalMatrix");
+	
+	directionalLightDir = glGetUniformLocation(prog.glId(), "uDirectionalLightDir");
+	directionalLightIntensity = glGetUniformLocation(prog.glId(), "uDirectionalLightIntensity");
+	pointLightPosition = glGetUniformLocation(prog.glId(), "uPointLightPosition");
+	pointLightIntensity = glGetUniformLocation(prog.glId(), "uPointLightIntensity");
+	kd = glGetUniformLocation(prog.glId(), "uKd");
 	
 	prog.use();
 	
@@ -156,6 +191,29 @@ Application::Application(int argc, char** argv):
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cube_ibo);
 
     glBindVertexArray(0);
+    
+    Image2DRGBA img = glmlv::readImage("/home/2inl2/rbilal/Synthese/GLImac-Template/assets/textures/triforce.png");
+	glActiveTexture(GL_TEXTURE0);
+
+	glGenTextures(1, &texObject);
+	glBindTexture(GL_TEXTURE_2D, texObject);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGB32F, img.width(), img.height());
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width(), img.height(), GL_RGBA, GL_UNSIGNED_BYTE, img.data());
+	glBindTexture(GL_TEXTURE_2D, 0);
+	
+	Image2DRGBA img2 = glmlv::readImage(m_AssetsRootPath / m_AppName / "textures" / "opengl-logo.png");
+
+	glGenTextures(1, &texObject2);
+	glBindTexture(GL_TEXTURE_2D, texObject2);
+	glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGB32F, img2.width(), img2.height());
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img2.width(), img2.height(), GL_RGBA, GL_UNSIGNED_BYTE, img2.data());
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	glGenSamplers(1, &samplerObject);
+    glSamplerParameteri(samplerObject, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(samplerObject, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    uSamplerLocation = glGetUniformLocation(prog.glId(), "uKdSampler");
 
 //	############################################ SPHERE INITIALISATION #########################################################
     
@@ -200,7 +258,7 @@ Application::Application(int argc, char** argv):
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphere_ibo);
 
     glBindVertexArray(0);
-    
+	
     glEnable(GL_DEPTH_TEST);
     
 }
