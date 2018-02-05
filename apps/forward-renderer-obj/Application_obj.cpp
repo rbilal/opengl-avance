@@ -163,7 +163,7 @@ Application::Application(int argc, char** argv):
 
 //	############################################ SCENE INITIALISATION #########################################################
 
-	glmlv::loadObj(m_AssetsRootPath / "glmlv" / "models" / "crytek-sponza" / "sponza.obj", data);
+	glmlv::loadObj(m_AssetsRootPath / m_AppName / "models" / "sponza.obj", data);
 
 	glGenBuffers(1, &scene_vbo);
 	
