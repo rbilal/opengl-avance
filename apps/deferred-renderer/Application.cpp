@@ -74,7 +74,7 @@ int Application::run()
         };
 
         glBindVertexArray(m_SceneVAO);
-
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_FBO);
         const PhongMaterial * currentMaterial = nullptr;
 
         // We draw each shape by specifying how much indices it carries, and with an offset in the global index buffer
@@ -91,6 +91,12 @@ int Application::run()
 
         for (GLuint i : {0, 1, 2, 3})
             glBindSampler(i, 0);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
+
+        glReadBuffer(GL_COLOR_ATTACHMENT0 + Gposition);
 
         // GUI code:
         ImGui_ImplGlfwGL3_NewFrame();
@@ -126,9 +132,44 @@ int Application::run()
                 ImGui::InputFloat3("Position", glm::value_ptr(m_PointLightPosition));
             }
 
+            int selected;
+            ImGui::RadioButton("position", &selected, 0);
+            ImGui::RadioButton("Normal", &selected, 1);
+            ImGui::RadioButton("Ambient", &selected, 2);
+            ImGui::RadioButton("Diffuse", &selected, 3);
+            ImGui::RadioButton("GlossyShininess", &selected, 4);
+            ImGui::RadioButton("Depth", &selected, 5);
+            
+
+            switch(selected){
+                case Gposition:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + Gposition);
+                    break;
+                case GNormal:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + GNormal);
+                    break;
+                case GAmbient:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + GAmbient);
+                    break;
+                case GDiffuse:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + GDiffuse);
+                    break;
+                case GGlossyShininess:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + GGlossyShininess);
+                    break;
+                case GDepth:
+                    glReadBuffer(GL_COLOR_ATTACHMENT0 + GDepth);
+                    break;
+                default:
+                    break;
+            }
+
+            glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
             ImGui::End();
         }
 
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
         
         ImGui::Render();
 
@@ -221,10 +262,27 @@ Application::Application(int argc, char** argv):
 
         for (int i = 0; i < GBufferTextureCount; i++){
             glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[i]);
-            glTexStorage2D(GL_TEXTURE_2D, 1, m_GBufferTextureFormat[i], m_nWindowWidth, m_nWindowHeigth);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_nWindowWidth, m_nWindowheight, GL_RGBA, GL_UNSIGNED_BYTE, data.textures.data());
+            glTexStorage2D(GL_TEXTURE_2D, 1, m_GBufferTextureFormat[i], m_nWindowWidth, m_nWindowHeight);
             glBindTexture(GL_TEXTURE_2D, 0);
         }
+
+
+        glGenFramebuffers(1, &m_FBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_FBO);
+
+        for(int i = 0; i < 5; i++) {
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, m_GBufferTextures[i], 0);
+        }
+
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_GBufferTextures[5], 0);
+
+        GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4 };
+        glDrawBuffers(5, drawBuffers);
+
+        glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
 
         for (const auto & material : data.materials)
         {
@@ -307,4 +365,14 @@ Application::Application(int argc, char** argv):
     m_uShininessSamplerLocation = glGetUniformLocation(m_program.glId(), "uShininessSampler");
 
     m_viewController.setSpeed(m_SceneSize * 0.1f); // Let's travel 10% of the scene per second
+
+    m_program2 = glmlv::compileProgram({ m_ShadersRootPath / m_AppName / "shadingPass.vs.glsl", m_ShadersRootPath / m_AppName / "shadingPass.fs.glsl" });
+    m_program2.use();
+
+    m_GPositionLocation = glGetUniformLocation(m_program2.glId(), "uGPosition");
+    m_GNormalLocation = glGetUniformLocation(m_program2.glId(), "uGNormal");
+    m_GAmbientLocation = glGetUniformLocation(m_program2.glId(), "uGAmbient");
+    m_GDiffuseLocation = glGetUniformLocation(m_program2.glId(), "uGDiffuse");
+    m_GlossyShininessLocation = glGetUniformLocation(m_program2.glId(), "uGlossyShininess");
+
 }

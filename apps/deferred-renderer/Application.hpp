@@ -72,6 +72,7 @@ private:
     GLuint m_textureSampler = 0; // Only one sampler object since we will use the same sampling parameters for all textures
 
     glmlv::GLProgram m_program;
+    glmlv::GLProgram m_program2;
 
     glmlv::ViewController m_viewController{ m_GLFWHandle.window(), 3.f };
     GLint m_uModelViewProjMatrixLocation;
@@ -107,7 +108,7 @@ private:
 
     enum GbufferTextureType
     {
-        Gposition = 0;
+        Gposition = 0,
         GNormal,
         GAmbient,
         GDiffuse,
@@ -117,4 +118,12 @@ private:
     };
 
     GLuint m_GBufferTextures[GBufferTextureCount];
+
+    GLuint m_FBO;
+
+    GLint m_GPositionLocation;
+    GLint m_GNormalLocation;
+    GLint m_GAmbientLocation;
+    GLint m_GDiffuseLocation;
+    GLint m_GlossyShininessLocation;
 };
