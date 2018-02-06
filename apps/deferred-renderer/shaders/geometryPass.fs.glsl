@@ -34,31 +34,11 @@ void main()
     vec3 ks = uKs * vec3(texture(uKsSampler, vTexCoords));
     float shininess = uShininess * vec3(texture(uShininessSampler, vTexCoords)).x;
 
-    vec3 normal = normalize(vViewSpaceNormal);
-    vec3 eyeDir = normalize(-vViewSpacePosition);
-
-    float distToPointLight = length(uPointLightPosition - vViewSpacePosition);
-    vec3 dirToPointLight = (uPointLightPosition - vViewSpacePosition) / distToPointLight;
-    vec3 pointLightIncidentLight = uPointLightIntensity / (distToPointLight * distToPointLight);
-
-    // half vectors, for blinn-phong shading
-    vec3 hPointLight = normalize(eyeDir + dirToPointLight);
-    vec3 hDirLight = normalize(eyeDir + uDirectionalLightDir);
-
-    float dothPointLight = shininess == 0 ? 1.f : max(0.f, dot(normal, hPointLight));
-    float dothDirLight = shininess == 0 ? 1.f :max(0.f, dot(normal, hDirLight));
-
-    if (shininess != 1.f && shininess != 0.f)
-    {
-        dothPointLight = pow(dothPointLight, shininess);
-        dothDirLight = pow(dothDirLight, shininess);
-    }
-
     fAmbient = ka;
-    fDiffuse = kd * (uDirectionalLightIntensity * max(0.f, dot(normal, uDirectionalLightDir)) + pointLightIncidentLight * max(0., dot(normal, dirToPointLight)));
+    fDiffuse = kd;
 
-    fGlossyShininess = vec4(ks, ks * (uDirectionalLightIntensity * dothDirLight + pointLightIncidentLight * dothPointLight));
+    fGlossyShininess = vec4(ks, shininess);
 
-    fNormal = normal;
+    fNormal = normalize(vViewSpaceNormal);
     fPosition = vViewSpacePosition;
 }

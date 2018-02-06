@@ -1,9 +1,4 @@
 #version 330
-
-in vec3 vViewSpacePosition;
-in vec3 vViewSpaceNormal;
-in vec2 vTexCoords;
-
 out vec3 fColor;
 
 uniform vec3 uDirectionalLightDir;
@@ -11,16 +6,6 @@ uniform vec3 uDirectionalLightIntensity;
 
 uniform vec3 uPointLightPosition;
 uniform vec3 uPointLightIntensity;
-
-uniform vec3 uKa;
-uniform vec3 uKd;
-uniform vec3 uKs;
-uniform float uShininess;
-
-uniform sampler2D uKaSampler;
-uniform sampler2D uKdSampler;
-uniform sampler2D uKsSampler;
-uniform sampler2D uShininessSampler;
 
 uniform sampler2D uGPosition;
 uniform sampler2D uGNormal;
@@ -32,23 +17,22 @@ void main()
 {
     vec3 ka = vec3(texelFetch(uGAmbient, ivec2(gl_FragCoord.xy), 0));
 
-
     vec3 kd = vec3(texelFetch(uGDiffuse, ivec2(gl_FragCoord.xy), 0));
 
-    vec3 ks = vec3(texelFetch(uGlossyShininess, ivec2(gl_FragCoord.xy), 0));;
+    vec4 ksShininess = vec4(texelFetch(uGlossyShininess, ivec2(gl_FragCoord.xy), 0));
 
-    float shininess = uShininess * vec3(texture(uShininessSampler, vTexCoords)).x;
+    vec3 ks = ksShininess.rgb;
 
-    vec3 texnormal = vec3(texelFetch(uGNormal, ivec2(gl_FragCoord.xy), 0));
+    float shininess = ksShininess.a;
 
-    vec3 normal = normalize(texnormal);
+    vec3 normal = vec3(texelFetch(uGNormal, ivec2(gl_FragCoord.xy), 0));
 
     vec3 position = vec3(texelFetch(uGPosition, ivec2(gl_FragCoord.xy), 0)); // Correspond a vViewSpacePosition dans le forward renderer
 
     vec3 eyeDir = normalize(-position);
 
-    float distToPointLight = length(uPointLightPosition - vViewSpacePosition);
-    vec3 dirToPointLight = (uPointLightPosition - vViewSpacePosition) / distToPointLight;
+    float distToPointLight = length(uPointLightPosition - position);
+    vec3 dirToPointLight = (uPointLightPosition - position) / distToPointLight;
     vec3 pointLightIncidentLight = uPointLightIntensity / (distToPointLight * distToPointLight);
 
     // half vectors, for blinn-phong shading
