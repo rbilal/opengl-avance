@@ -17,11 +17,56 @@ int Application::run()
 {
     float clearColor[3] = { 0, 0, 0 };
     int selected = Gposition;
-
+    bool directionalSMDirty = true;
     // Loop until the user closes the window
     for (auto iterationCount = 0u; !m_GLFWHandle.shouldClose(); ++iterationCount)
-    {
+    {   
+
         const auto seconds = glfwGetTime();
+
+        static const auto computeDirectionVectorUp = [](float phiRadians, float thetaRadians)
+        {
+            const auto cosPhi = glm::cos(phiRadians);
+            const auto sinPhi = glm::sin(phiRadians);
+            const auto cosTheta = glm::cos(thetaRadians);
+            return -glm::normalize(glm::vec3(sinPhi * cosTheta, -glm::sin(thetaRadians), cosPhi * cosTheta));
+        };
+
+        const auto sceneCenter = 0.5f * (m_BBoxMin + m_BBoxMax);
+        const float sceneRadius = m_SceneSize * 0.5f;
+
+        const auto dirLightUpVector = computeDirectionVectorUp(glm::radians(m_DirLightPhiAngleDegrees), glm::radians(m_DirLightThetaAngleDegrees));
+        const auto dirLightViewMatrix = glm::lookAt(sceneCenter + m_DirLightDirection * sceneRadius, sceneCenter, dirLightUpVector); // Will not work if m_DirLightDirection is colinear to lightUpVector
+        const auto dirLightProjMatrix = glm::ortho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius, 0.01f * sceneRadius, 2.f * sceneRadius);
+
+
+
+        if(directionalSMDirty)
+        {
+            //calcul de la shadow map
+            m_directionalSMProgram.use();
+
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_directionalSMFBO);
+            glViewport(0, 0, m_nDirectionalSMResolution, m_nDirectionalSMResolution);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            glUniformMatrix4fv(m_uDirLightViewProjMatrix, 1, GL_FALSE, glm::value_ptr(dirLightProjMatrix * dirLightViewMatrix));
+
+            glBindVertexArray(m_SceneVAO);
+
+            // We draw each shape by specifying how much indices it carries, and with an offset in the global index buffer
+            for (const auto shape : m_shapes) {
+                glDrawElements(GL_TRIANGLES, shape.indexCount, GL_UNSIGNED_INT, (const GLvoid*)(shape.indexOffset * sizeof(GLuint)));
+            }
+
+            glBindVertexArray(0);
+
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+            directionalSMDirty = false;
+
+        }
+
 
         // Put here rendering code
         const auto viewportSize = m_GLFWHandle.framebufferSize();
@@ -97,36 +142,6 @@ int Application::run()
         m_program2.use();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glUniform3fv(m_uDirectionalLightDirLocation, 1, glm::value_ptr(glm::vec3(viewMatrix * glm::vec4(glm::normalize(m_DirLightDirection), 0))));
-        glUniform3fv(m_uDirectionalLightIntensityLocation, 1, glm::value_ptr(m_DirLightColor * m_DirLightIntensity));
-
-        glUniform3fv(m_uPointLightPositionLocation, 1, glm::value_ptr(glm::vec3(viewMatrix * glm::vec4(m_PointLightPosition, 1))));
-        glUniform3fv(m_uPointLightIntensityLocation, 1, glm::value_ptr(m_PointLightColor * m_PointLightIntensity));
-        
-        for (GLuint i : {0, 1, 2, 3, 4})
-            glBindSampler(i, m_textureSampler);
-        
-        glUniform1i(m_GPositionLocation, 0);
-        glUniform1i(m_GNormalLocation, 1);
-        glUniform1i(m_GAmbientLocation, 2);
-        glUniform1i(m_GDiffuseLocation, 3);
-        glUniform1i(m_GlossyShininessLocation, 4);
-
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[Gposition]);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GNormal]);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GDiffuse]);
-        glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GAmbient]);
-        glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GGlossyShininess]);
-
-        // Put here rendering code
-        glBindVertexArray(m_TriangleVAO);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
         
         // GUI code:
         ImGui_ImplGlfwGL3_NewFrame();
@@ -152,6 +167,7 @@ int Application::run()
                 if (ImGui::DragFloat("Phi Angle", &m_DirLightPhiAngleDegrees, 1.0f, 0.0f, 360.f) ||
                     ImGui::DragFloat("Theta Angle", &m_DirLightThetaAngleDegrees, 1.0f, 0.0f, 180.f)) {
                     m_DirLightDirection = computeDirectionVector(glm::radians(m_DirLightPhiAngleDegrees), glm::radians(m_DirLightThetaAngleDegrees));
+                    directionalSMDirty = true;
                 }
             }
 
@@ -168,30 +184,67 @@ int Application::run()
             ImGui::RadioButton("Diffuse", &selected, 3);
             ImGui::RadioButton("GlossyShininess", &selected, 4);
             ImGui::RadioButton("Depth", &selected, 5);
+            ImGui::RadioButton("Shading", &selected, 6);
             
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
 
             switch(selected){
                 case Gposition:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + Gposition);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 case GNormal:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + GNormal);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 case GAmbient:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + GAmbient);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 case GDiffuse:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + GDiffuse);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 case GGlossyShininess:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + GGlossyShininess);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 case GDepth:
                     glReadBuffer(GL_COLOR_ATTACHMENT0 + GDepth);
+                    glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
                     break;
                 default:
-                    break;
+                        glUniform3fv(m_uDirectionalLightDirLocation, 1, glm::value_ptr(glm::vec3(viewMatrix * glm::vec4(glm::normalize(m_DirLightDirection), 0))));
+                        glUniform3fv(m_uDirectionalLightIntensityLocation, 1, glm::value_ptr(m_DirLightColor * m_DirLightIntensity));
+
+                        glUniform3fv(m_uPointLightPositionLocation, 1, glm::value_ptr(glm::vec3(viewMatrix * glm::vec4(m_PointLightPosition, 1))));
+                        glUniform3fv(m_uPointLightIntensityLocation, 1, glm::value_ptr(m_PointLightColor * m_PointLightIntensity));
+                        
+                        for (GLuint i : {0, 1, 2, 3, 4})
+                            glBindSampler(i, m_textureSampler);
+                        
+                        glUniform1i(m_GPositionLocation, 0);
+                        glUniform1i(m_GNormalLocation, 1);
+                        glUniform1i(m_GAmbientLocation, 2);
+                        glUniform1i(m_GDiffuseLocation, 3);
+                        glUniform1i(m_GlossyShininessLocation, 4);
+
+
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[Gposition]);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GNormal]);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GDiffuse]);
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GAmbient]);
+                        glActiveTexture(GL_TEXTURE4);
+                        glBindTexture(GL_TEXTURE_2D, m_GBufferTextures[GGlossyShininess]);
+
+                        // Put here rendering code
+                        glBindVertexArray(m_TriangleVAO);
+                        glDrawArrays(GL_TRIANGLES, 0, 3);
+                        break;
             }
 
             //glBlitFramebuffer(0, 0, m_nWindowWidth, m_nWindowHeight, 0, 0, m_nWindowWidth, m_nWindowHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
@@ -246,7 +299,9 @@ Application::Application(int argc, char** argv):
         const auto objPath =  m_AssetsRootPath / "glmlv" / "models" / "crytek-sponza" / "sponza.obj";
         glmlv::ObjData data;
         loadObj(objPath, data);
-        m_SceneSize = glm::length(data.bboxMax - data.bboxMin);
+        m_BBoxMax = data.bboxMax;
+        m_BBoxMin = data.bboxMin;
+        m_SceneSize = glm::length(m_BBoxMax - m_BBoxMin);
 
         std::cout << "# of shapes    : " << data.shapeCount << std::endl;
         std::cout << "# of materials : " << data.materialCount << std::endl;
@@ -399,6 +454,33 @@ Application::Application(int argc, char** argv):
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+
+    ////////////Shadow Mapping///////////////
+    glGenTextures(1, &m_directionalSMTexture);
+    glBindTexture(GL_TEXTURE_2D, m_directionalSMTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, m_nWindowWidth, m_nWindowHeight);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers(1, &m_directionalSMFBO);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_directionalSMFBO);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_directionalSMTexture, 0);
+
+
+    if (GL_FRAMEBUFFER_COMPLETE != glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER))
+    {
+        std::cerr << "Oups" << std::endl;
+        exit(-1);
+    }
+
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+
+    glGenSamplers(1, &m_directionalSMSampler);
+    glSamplerParameteri(m_directionalSMSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glSamplerParameteri(m_directionalSMSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glSamplerParameteri(m_directionalSMSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glSamplerParameteri(m_directionalSMSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
     glEnable(GL_DEPTH_TEST);
 
     m_program = glmlv::compileProgram({ m_ShadersRootPath / m_AppName / "geometryPass.vs.glsl", m_ShadersRootPath / m_AppName / "geometryPass.fs.glsl" });
@@ -433,5 +515,12 @@ Application::Application(int argc, char** argv):
 
     m_uPointLightPositionLocation = glGetUniformLocation(m_program2.glId(), "uPointLightPosition");
     m_uPointLightIntensityLocation = glGetUniformLocation(m_program2.glId(), "uPointLightIntensity");
+
+    
+    m_directionalSMProgram = glmlv::compileProgram({ m_ShadersRootPath / m_AppName / "directionalSM.vs.glsl", m_ShadersRootPath / m_AppName / "directionalSM.fs.glsl" });
+    m_directionalSMProgram.use();
+
+    m_uDirLightViewProjMatrix = glGetUniformLocation(m_directionalSMProgram.glId(), "uDirLightViewProjMatrix");
+
 
 }

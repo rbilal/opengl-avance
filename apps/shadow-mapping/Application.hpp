@@ -130,4 +130,15 @@ private:
     GLuint m_TriangleVBO = 0;
     GLuint m_TriangleVAO = 0;
 
+
+    GLuint m_directionalSMTexture;
+    GLuint m_directionalSMFBO;
+    GLuint m_directionalSMSampler;
+    int32_t m_nDirectionalSMResolution = 512;
+
+    glmlv::GLProgram m_directionalSMProgram;
+    GLint m_uDirLightViewProjMatrix;
+
+    glm::vec3 m_BBoxMin;
+    glm::vec3 m_BBoxMax;
 };
